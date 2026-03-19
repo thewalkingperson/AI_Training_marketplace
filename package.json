@@ -1,0 +1,47 @@
+{
+  "name": "failure_exchange",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "worker": "tsx worker/index.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@auth/prisma-adapter": "latest",
+    "@prisma/client": "^6.19.2",
+    "clsx": "latest",
+    "next": "latest",
+    "next-auth": "latest",
+    "pg-boss": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitest/coverage-v8": "latest",
+    "autoprefixer": "^10.4.20",
+    "eslint": "latest",
+    "eslint-config-next": "latest",
+    "postcss": "^8.4.49",
+    "prisma": "^6.19.2",
+    "tailwindcss": "^4.2.1",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

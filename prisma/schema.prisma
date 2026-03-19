@@ -1,0 +1,382 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  contributor
+  sponsor
+  reviewer
+  admin
+}
+
+enum ArtifactType {
+  code_repo
+  spreadsheet
+  notebook
+}
+
+enum SubmissionStatus {
+  draft
+  submitted
+  validating
+  needs_review
+  approved
+  rejected
+}
+
+enum ReviewStatus {
+  pending
+  approved
+  rejected
+}
+
+enum EligibilityStatus {
+  pending
+  eligible
+  ineligible
+}
+
+enum CampaignStatus {
+  draft
+  active
+  paused
+  completed
+}
+
+enum CompetitionEntryStatus {
+  queued
+  running
+  scored
+  rejected
+}
+
+enum BriefMatchStatus {
+  suggested
+  matched
+  payout_pending
+  paid
+}
+
+enum PackType {
+  eval_pack
+  training_pack
+}
+
+enum AccountType {
+  stripe_connect
+  manual
+}
+
+enum CurrencyCode {
+  USD
+}
+
+enum OrganizationType {
+  lab
+  vendor
+  community
+}
+
+model User {
+  id                 String              @id
+  name               String
+  email              String              @unique
+  image              String?
+  role               UserRole
+  organizationId     String?
+  organization       Organization?       @relation(fields: [organizationId], references: [id])
+  profile            Profile?
+  payoutAccount      PayoutAccount?
+  submissions        Submission[]
+  domainBriefs       DomainBrief[]       @relation("BriefBuyer")
+  competitions       CompetitionCampaign[] @relation("CompetitionBuyer")
+  casePacks          CasePack[]          @relation("PackBuyer")
+  competitionEntries CompetitionEntry[]  @relation("CompetitionParticipant")
+  reviewDecisions    ReviewDecision[]    @relation("ReviewAuthor")
+  auditEvents        AuditEvent[]        @relation("AuditActor")
+  disputes           Dispute[]           @relation("DisputeReporter")
+  accounts           Account[]
+  sessions           Session[]
+}
+
+model Profile {
+  userId       String @id
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline     String
+  bio          String
+  githubHandle String
+  payoutReady  Boolean @default(false)
+}
+
+model PayoutAccount {
+  id       String       @id
+  userId   String       @unique
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider AccountType
+  status   String
+  currency CurrencyCode
+}
+
+model Organization {
+  id      String             @id
+  name    String
+  type    OrganizationType
+  users   User[]
+}
+
+model Submission {
+  id                String            @id
+  contributorId     String
+  contributor       User              @relation(fields: [contributorId], references: [id], onDelete: Cascade)
+  artifactType      ArtifactType
+  sourceUrl         String
+  taskUrl           String
+  language          String
+  toolName          String
+  modelName         String
+  promptSummary     String
+  failingRef        String
+  fixRef            String
+  reproSteps        String[]
+  rightsEvaluation  Boolean
+  rightsCompetition Boolean
+  rightsTraining    Boolean
+  attestations      String[]
+  status            SubmissionStatus
+  createdAt         DateTime          @default(now())
+  artifacts         SubmissionArtifact[]
+  validatedCase     ValidatedCase?
+}
+
+model SubmissionArtifact {
+  id           String     @id
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  label        String
+  artifactType String
+  url          String
+}
+
+model ValidatedCase {
+  id                     String              @id
+  submissionId           String              @unique
+  submission             Submission          @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  artifactType           ArtifactType
+  domain                 String
+  subcategory            String
+  reproStatus            String
+  reviewStatus           ReviewStatus
+  severity               Int
+  noveltyScore           Float
+  safetyFlags            String[]
+  reasonCodes            String[]
+  evalEligibility        EligibilityStatus
+  competitionEligibility EligibilityStatus
+  trainingEligibility    EligibilityStatus
+  createdAt              DateTime            @default(now())
+  reviews                ReviewDecision[]
+  briefMatches           BriefMatch[]
+  pricingRecommendations PricingRecommendation[]
+  competitionSplits      CompetitionCaseSplit[]
+  disputes               Dispute[]
+}
+
+model ReviewDecision {
+  id                 String       @id
+  caseId             String
+  reviewerId         String
+  decision           ReviewStatus
+  notes              String
+  rightsEvaluation   Boolean
+  rightsCompetition  Boolean
+  rightsTraining     Boolean
+  createdAt          DateTime     @default(now())
+  validatedCase      ValidatedCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  reviewer           User         @relation("ReviewAuthor", fields: [reviewerId], references: [id], onDelete: Cascade)
+}
+
+model DomainBrief {
+  id                 String          @id
+  buyerId            String
+  buyer              User            @relation("BriefBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  domain             String
+  subcategoryFilters String[]
+  languageFilters    String[]
+  requiredSignals    String[]
+  rightsRequested    String[]
+  payoutMinUsd       Int
+  payoutMaxUsd       Int
+  caseLimit          Int
+  acceptanceCriteria String
+  status             CampaignStatus
+  createdAt          DateTime        @default(now())
+  briefMatches       BriefMatch[]
+  pricingRecommendations PricingRecommendation[]
+}
+
+model BriefMatch {
+  id                String          @id
+  briefId           String
+  caseId            String
+  status            BriefMatchStatus
+  selectedPayoutUsd Int
+  reviewerNotes     String
+  createdAt         DateTime        @default(now())
+  brief             DomainBrief     @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  validatedCase     ValidatedCase   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model PricingRecommendation {
+  id              String        @id
+  caseId          String
+  briefId         String?
+  suggestedMinUsd Int
+  suggestedMaxUsd Int
+  confidence      Float
+  reasonCodes     String[]
+  llmSummary      String
+  createdAt       DateTime      @default(now())
+  validatedCase   ValidatedCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  brief           DomainBrief?  @relation(fields: [briefId], references: [id], onDelete: SetNull)
+}
+
+model CompetitionCampaign {
+  id                String                @id
+  buyerId           String
+  slug              String                @unique
+  title             String
+  description       String
+  filters           String[]
+  allowedModels     String[]
+  allowedTools      String[]
+  prizePoolUsd      Int
+  maxEntriesPerUser Int
+  scoringVersion    String
+  status            CampaignStatus
+  startAt           DateTime
+  endAt             DateTime
+  createdAt         DateTime              @default(now())
+  buyer             User                  @relation("CompetitionBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  caseSplits        CompetitionCaseSplit[]
+  entries           CompetitionEntry[]
+}
+
+model CompetitionCaseSplit {
+  id            String              @id
+  competitionId String
+  caseId        String
+  split         String
+  competition   CompetitionCampaign @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  validatedCase ValidatedCase       @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model CompetitionEntry {
+  id           String                 @id
+  campaignId   String
+  participantId String
+  agentConfig  Json
+  status       CompetitionEntryStatus
+  devScore     Float?
+  holdoutScore Float?
+  costScore    Float?
+  runtimeScore Float?
+  createdAt    DateTime               @default(now())
+  campaign     CompetitionCampaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  participant  User                   @relation("CompetitionParticipant", fields: [participantId], references: [id], onDelete: Cascade)
+  runs         CompetitionRun[]
+}
+
+model CompetitionRun {
+  id             String           @id
+  entryId        String
+  split          String
+  solvedCases    Int
+  totalCases     Int
+  totalCostUsd   Float
+  totalRuntimeMs Int
+  reasonCodes    String[]
+  createdAt      DateTime         @default(now())
+  entry          CompetitionEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+}
+
+model CasePack {
+  id             String      @id
+  buyerId        String
+  packType       PackType
+  caseIds        String[]
+  exportManifest Json
+  createdAt      DateTime    @default(now())
+  buyer          User        @relation("PackBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  exports        PackExport[]
+}
+
+model PackExport {
+  id          String   @id
+  packId      String
+  status      String
+  downloadUrl String
+  createdAt   DateTime @default(now())
+  pack        CasePack @relation(fields: [packId], references: [id], onDelete: Cascade)
+}
+
+model AuditEvent {
+  id         String   @id
+  actorId    String
+  entityType String
+  entityId   String
+  action     String
+  metadata   Json
+  createdAt  DateTime @default(now())
+  actor      User     @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+}
+
+model Dispute {
+  id         String   @id
+  reporterId String
+  caseId     String?
+  packId     String?
+  status     String
+  summary    String
+  createdAt  DateTime @default(now())
+  reporter   User     @relation("DisputeReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  validatedCase ValidatedCase? @relation(fields: [caseId], references: [id], onDelete: SetNull)
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

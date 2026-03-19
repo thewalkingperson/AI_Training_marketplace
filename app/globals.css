@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Times New Roman", serif;
+  --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(226, 200, 139, 0.4), transparent 32%),
+    radial-gradient(circle at top right, rgba(217, 95, 43, 0.12), transparent 28%),
+    linear-gradient(180deg, #fffdf9 0%, #f7f3ea 48%, #eef3ee 100%);
+  color: #11120f;
+  font-family: var(--font-sans), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.background-orbit {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 12% 15%, rgba(23, 91, 120, 0.14), transparent 18%),
+    radial-gradient(circle at 86% 22%, rgba(73, 108, 79, 0.13), transparent 18%),
+    linear-gradient(rgba(17, 18, 15, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 18, 15, 0.04) 1px, transparent 1px);
+  background-size:
+    auto,
+    auto,
+    28px 28px,
+    28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), transparent 95%);
+  opacity: 0.7;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display), serif;
+  letter-spacing: -0.03em;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.fade-up {
+  animation: fade-up 0.6s ease both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
