@@ -2,12 +2,25 @@ interface MetricCardProps {
   label: string;
   value: string;
   detail: string;
+  tone?: "default" | "primary" | "secondary";
 }
 
-export const MetricCard = ({ label, value, detail }: MetricCardProps) => (
-  <article className="rounded-4xl border border-ink/10 bg-white/90 p-6 shadow-card backdrop-blur">
-    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-ink/45">{label}</p>
-    <p className="mt-3 text-4xl font-semibold text-ink">{value}</p>
-    <p className="mt-2 text-sm text-ink/65">{detail}</p>
+export const MetricCard = ({ label, value, detail, tone = "default" }: MetricCardProps) => (
+  <article
+    className={[
+      "surface-card rounded-[2rem] p-6",
+      tone === "primary" ? "bg-primary text-white shadow-[0_24px_48px_rgba(163,56,15,0.14)]" : "",
+      tone === "secondary" ? "bg-surface-container-low text-on-surface" : ""
+    ].join(" ")}
+  >
+    <p className={tone === "primary" ? "font-mono text-[0.62rem] uppercase tracking-[0.18em] text-white/70" : "mono-kicker"}>
+      {label}
+    </p>
+    <p className={tone === "primary" ? "mt-4 font-headline text-5xl italic text-white" : "mt-4 font-headline text-4xl italic text-on-surface"}>
+      {value}
+    </p>
+    <p className={tone === "primary" ? "mt-3 max-w-xs text-sm leading-6 text-white/72" : "mt-3 text-sm leading-6 text-on-surface-variant"}>
+      {detail}
+    </p>
   </article>
 );

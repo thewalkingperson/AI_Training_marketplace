@@ -61,6 +61,7 @@ async function main() {
       failingRef: submission.failingRef,
       fixRef: submission.fixRef,
       reproSteps: submission.reproSteps,
+      chatLogConsent: submission.chatLogConsent,
       rightsEvaluation: submission.rights.evaluation,
       rightsCompetition: submission.rights.competition,
       rightsTraining: submission.rights.training,
@@ -71,7 +72,14 @@ async function main() {
   });
 
   await prisma.submissionArtifact.createMany({
-    data: mockSnapshot.submissionArtifacts
+    data: mockSnapshot.submissionArtifacts.map((artifact) => ({
+      id: artifact.id,
+      submissionId: artifact.submissionId,
+      label: artifact.label,
+      artifactType: artifact.artifactType,
+      url: artifact.url ?? null,
+      content: artifact.content ? (artifact.content as unknown as Prisma.InputJsonValue) : undefined
+    }))
   });
 
   await prisma.validatedCase.createMany({

@@ -1,5 +1,7 @@
 export type ArtifactType = "code_repo" | "spreadsheet" | "notebook";
 export type UserRole = "contributor" | "sponsor" | "reviewer" | "admin";
+export type SubmissionArtifactType = "log" | "diff" | "screenshot" | "trace" | "chat_log";
+export type ChatLogRole = "system" | "user" | "assistant" | "tool";
 export type SubmissionStatus =
   | "draft"
   | "submitted"
@@ -51,12 +53,27 @@ export interface RightsGrant {
   training: boolean;
 }
 
+export interface ChatLogMessage {
+  id: string;
+  role: ChatLogRole;
+  content: string;
+  toolName?: string | null;
+  createdAt?: string | null;
+}
+
+export interface ChatLogArtifactContent {
+  messages: ChatLogMessage[];
+  redactionSummary?: string[];
+  source?: string;
+}
+
 export interface SubmissionArtifact {
   id: string;
   submissionId: string;
   label: string;
-  artifactType: "log" | "diff" | "screenshot" | "trace";
-  url: string;
+  artifactType: SubmissionArtifactType;
+  url?: string | null;
+  content?: ChatLogArtifactContent | null;
 }
 
 export interface Submission {
@@ -73,6 +90,7 @@ export interface Submission {
   fixRef: string;
   reproSteps: string[];
   artifactIds: string[];
+  chatLogConsent: boolean;
   rights: RightsGrant;
   attestations: string[];
   status: SubmissionStatus;

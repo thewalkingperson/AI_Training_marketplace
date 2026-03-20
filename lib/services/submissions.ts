@@ -15,7 +15,8 @@ interface CreateSubmissionInput {
   failingRef: string;
   fixRef: string;
   reproSteps: string[];
-  artifacts: Array<Pick<SubmissionArtifact, "label" | "artifactType" | "url">>;
+  artifacts: Array<Pick<SubmissionArtifact, "label" | "artifactType" | "url" | "content">>;
+  chatLogConsent?: boolean;
   rights: Submission["rights"];
   attestations: string[];
 }
@@ -41,6 +42,7 @@ export const createSubmission = (input: CreateSubmissionInput) => {
     fixRef: input.fixRef,
     reproSteps: input.reproSteps,
     artifactIds: [],
+    chatLogConsent: input.chatLogConsent ?? false,
     rights: input.rights,
     attestations: input.attestations,
     status: "submitted",
@@ -50,7 +52,10 @@ export const createSubmission = (input: CreateSubmissionInput) => {
   const artifacts = input.artifacts.map((artifact) => ({
     id: crypto.randomUUID(),
     submissionId,
-    ...artifact
+    label: artifact.label,
+    artifactType: artifact.artifactType,
+    url: artifact.url ?? null,
+    content: artifact.content ?? null
   }));
 
   submission.artifactIds = artifacts.map((artifact) => artifact.id);
@@ -88,7 +93,8 @@ export const createSubmission = (input: CreateSubmissionInput) => {
     action: "submission.created",
     metadata: {
       artifactType: input.artifactType,
-      language: input.language
+      language: input.language,
+      chatLogConsent: input.chatLogConsent ?? false
     }
   });
 

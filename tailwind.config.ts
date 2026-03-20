@@ -9,21 +9,51 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        canvas: "#f7f3ea",
-        ink: "#11120f",
-        ember: "#d95f2b",
-        moss: "#496c4f",
-        sea: "#175b78",
-        sand: "#e2c88b"
+        surface: "#fcf9f1",
+        "surface-container-lowest": "#ffffff",
+        "surface-container-low": "#f6f4eb",
+        "surface-container": "#f0eee6",
+        "surface-container-high": "#eae8e0",
+        "surface-container-highest": "#e4e2da",
+        "surface-dim": "#dcdad2",
+        "surface-variant": "#e4e2da",
+        "on-surface": "#1b1c17",
+        "on-surface-variant": "#58423b",
+        primary: "#a3380f",
+        "primary-container": "#c45026",
+        "primary-fixed": "#ffdbd0",
+        secondary: "#426087",
+        tertiary: "#48624b",
+        "tertiary-fixed": "#cceacc",
+        outline: "#8b7169",
+        "outline-variant": "#dfc0b7",
+        error: "#ba1a1a",
+        "error-container": "#ffdad6",
+        canvas: "#fcf9f1",
+        ink: "#1b1c17",
+        ember: "#a3380f",
+        moss: "#48624b",
+        sea: "#426087",
+        sand: "#ffdbd0"
+      },
+      fontFamily: {
+        headline: ["var(--font-headline)"],
+        body: ["var(--font-body)"],
+        label: ["var(--font-label)"],
+        mono: ["var(--font-mono)"]
       },
       boxShadow: {
-        card: "0 22px 60px rgba(17, 18, 15, 0.08)"
+        card: "0 28px 72px rgba(27, 28, 23, 0.06)",
+        float: "0 40px 64px rgba(27, 28, 23, 0.05)"
       },
       borderRadius: {
-        "4xl": "2rem"
+        "4xl": "2rem",
+        "5xl": "2.5rem"
       },
       backgroundImage: {
-        "grid-fade": "radial-gradient(circle at top, rgba(23, 91, 120, 0.14), transparent 55%), linear-gradient(135deg, rgba(217, 95, 43, 0.14), transparent 40%)"
+        "audit-grid": "linear-gradient(to right, rgba(139, 113, 105, 0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(139, 113, 105, 0.08) 1px, transparent 1px)",
+        "ember-radial": "radial-gradient(circle at 45% 45%, #c45026 0%, #a3380f 100%)",
+        "technical-grid": "radial-gradient(rgba(27, 28, 23, 0.13) 0.5px, transparent 0.5px)"
       }
     }
   },

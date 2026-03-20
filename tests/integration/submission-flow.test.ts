@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 
+import { getChatLogMessages } from "@/lib/chat-logs";
 import { getSnapshot, resetMockStore } from "@/lib/mock-store";
 import { suggestBriefMatches } from "@/lib/services/briefs";
 import { createReviewDecision } from "@/lib/services/reviews";
@@ -23,7 +24,29 @@ describe("submission to review flow", () => {
       failingRef: "abc1234",
       fixRef: "def5678",
       reproSteps: ["pnpm install", "pnpm test"],
-      artifacts: [],
+      artifacts: [
+        {
+          label: "Claude transcript",
+          artifactType: "chat_log",
+          content: {
+            source: "manual_paste",
+            messages: [
+              {
+                id: "turn_test_1",
+                role: "user",
+                content: "Repair the deploy gate without changing release ordering."
+              },
+              {
+                id: "turn_test_2",
+                role: "assistant",
+                content: "I will start by replaying the failing workflow."
+              }
+            ],
+            redactionSummary: ["Token and maintainer email removed before submission."]
+          }
+        }
+      ],
+      chatLogConsent: true,
       rights: {
         evaluation: true,
         competition: true,
@@ -50,6 +73,13 @@ describe("submission to review flow", () => {
 
     expect(caseRecord?.reviewStatus).toBe("approved");
     expect(submission?.status).toBe("approved");
+    expect(submission?.chatLogConsent).toBe(true);
+
+    const chatArtifact = snapshot.submissionArtifacts.find(
+      (artifact) => artifact.submissionId === created.submission.id && artifact.artifactType === "chat_log",
+    );
+    expect(chatArtifact).toBeDefined();
+    expect(getChatLogMessages(chatArtifact).length).toBe(2);
 
     const matches = suggestBriefMatches(caseRecord!, submission!);
     expect(matches.length).toBeGreaterThan(0);

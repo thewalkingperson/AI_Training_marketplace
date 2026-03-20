@@ -72,7 +72,8 @@ export const mockSnapshot: DashboardSnapshot = {
       failingRef: "2f6ad08",
       fixRef: "9f1d2b0",
       reproSteps: ["pnpm install", "pnpm test", "pnpm release:dry-run"],
-      artifactIds: ["art_1", "art_2"],
+      artifactIds: ["art_1", "art_2", "art_4"],
+      chatLogConsent: true,
       rights: {
         evaluation: true,
         competition: true,
@@ -98,7 +99,8 @@ export const mockSnapshot: DashboardSnapshot = {
       failingRef: "5bc37e0",
       fixRef: "d1cc441",
       reproSteps: ["pip install -r requirements.txt", "pytest tests/test_factor_loader.py -q"],
-      artifactIds: ["art_3"],
+      artifactIds: ["art_3", "art_5"],
+      chatLogConsent: true,
       rights: {
         evaluation: true,
         competition: false,
@@ -133,6 +135,87 @@ export const mockSnapshot: DashboardSnapshot = {
       label: "Loader traceback",
       artifactType: "log",
       url: "https://example.com/logs/factor-loader.log"
+    },
+    {
+      id: "art_4",
+      submissionId: "sub_1",
+      label: "Redacted Claude Code transcript",
+      artifactType: "chat_log",
+      url: null,
+      content: {
+        source: "manual_paste",
+        redactionSummary: [
+          "Package token references removed before upload.",
+          "Maintainer email replaced with role label."
+        ],
+        messages: [
+          {
+            id: "turn_1",
+            role: "user",
+            content: "Repair the release workflow without changing publish order.",
+            createdAt: now
+          },
+          {
+            id: "turn_2",
+            role: "assistant",
+            content: "I will inspect the release gate and look for the dry-run failure first.",
+            createdAt: now
+          },
+          {
+            id: "turn_3",
+            role: "tool",
+            toolName: "shell",
+            content: "pnpm release:dry-run\nError: workflow stops after checksum step.",
+            createdAt: now
+          },
+          {
+            id: "turn_4",
+            role: "assistant",
+            content: "The model changed the publish order instead of restoring the missing guard; this transcript captures the wrong turn cleanly.",
+            createdAt: now
+          }
+        ]
+      }
+    },
+    {
+      id: "art_5",
+      submissionId: "sub_2",
+      label: "Redacted Codex transcript",
+      artifactType: "chat_log",
+      url: null,
+      content: {
+        source: "manual_paste",
+        redactionSummary: [
+          "Internal fund code names replaced with neutral scenario labels."
+        ],
+        messages: [
+          {
+            id: "turn_5",
+            role: "system",
+            content: "Prioritize deterministic fixes and preserve daily batch semantics.",
+            createdAt: now
+          },
+          {
+            id: "turn_6",
+            role: "user",
+            content: "Repair the factor loader and explain why the covariance shape changed.",
+            createdAt: now
+          },
+          {
+            id: "turn_7",
+            role: "assistant",
+            content: "I suspect the loader is coercing a sparse matrix into a dense frame.",
+            createdAt: now
+          },
+          {
+            id: "turn_8",
+            role: "tool",
+            toolName: "pytest",
+            content: "AssertionError: expected 84 columns, got 83 after scenario merge.",
+            createdAt: now
+          }
+        ]
+      }
     }
   ],
   validatedCases: [

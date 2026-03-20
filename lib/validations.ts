@@ -6,6 +6,44 @@ export const rightsGrantSchema = z.object({
   training: z.boolean()
 });
 
+const chatLogMessageSchema = z.object({
+  id: z.string().min(1),
+  role: z.enum(["system", "user", "assistant", "tool"]),
+  content: z.string().min(1),
+  toolName: z.string().min(1).nullable().optional(),
+  createdAt: z.string().datetime().nullable().optional()
+});
+
+const chatLogArtifactSchema = z.object({
+  label: z.string().min(1),
+  artifactType: z.enum(["log", "diff", "screenshot", "trace", "chat_log"]),
+  url: z.string().url().nullable().optional(),
+  content: z
+    .object({
+      messages: z.array(chatLogMessageSchema).min(1),
+      redactionSummary: z.array(z.string().min(1)).default([]),
+      source: z.string().min(1).optional()
+    })
+    .nullable()
+    .optional()
+}).superRefine((artifact, ctx) => {
+  if (artifact.artifactType === "chat_log" && !artifact.content?.messages.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "chat_log artifacts require transcript messages.",
+      path: ["content", "messages"]
+    });
+  }
+
+  if (artifact.artifactType !== "chat_log" && !artifact.url) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Non-chat artifacts require a URL.",
+      path: ["url"]
+    });
+  }
+});
+
 export const submissionInputSchema = z.object({
   contributorId: z.string().min(1).default("usr_contrib_1"),
   artifactType: z.enum(["code_repo", "spreadsheet", "notebook"]).default("code_repo"),
@@ -18,17 +56,19 @@ export const submissionInputSchema = z.object({
   failingRef: z.string().min(4),
   fixRef: z.string().min(4),
   reproSteps: z.array(z.string().min(1)).min(1),
-  artifacts: z
-    .array(
-      z.object({
-        label: z.string().min(1),
-        artifactType: z.enum(["log", "diff", "screenshot", "trace"]),
-        url: z.string().url()
-      }),
-    )
-    .default([]),
+  artifacts: z.array(chatLogArtifactSchema).default([]),
+  chatLogConsent: z.boolean().default(false),
   rights: rightsGrantSchema,
   attestations: z.array(z.string().min(5)).min(1)
+}).superRefine((submission, ctx) => {
+  const includesChatLog = submission.artifacts.some((artifact) => artifact.artifactType === "chat_log");
+  if (includesChatLog && !submission.chatLogConsent) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Explicit consent is required before storing a chat transcript.",
+      path: ["chatLogConsent"]
+    });
+  }
 });
 
 export const reviewDecisionInputSchema = z.object({

@@ -143,6 +143,7 @@ model Submission {
   failingRef        String
   fixRef            String
   reproSteps        String[]
+  chatLogConsent    Boolean           @default(false)
   rightsEvaluation  Boolean
   rightsCompetition Boolean
   rightsTraining    Boolean
@@ -159,7 +160,8 @@ model SubmissionArtifact {
   submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   label        String
   artifactType String
-  url          String
+  url          String?
+  content      Json?
 }
 
 model ValidatedCase {
