@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { ApiAccessError, requireApiAccess } from "@/lib/access";
 import { getRecommendationForCase } from "@/lib/services/pricing";
 
 interface PricingRouteContext {
@@ -9,15 +10,27 @@ interface PricingRouteContext {
 }
 
 export async function GET(_: Request, context: PricingRouteContext) {
-  const { caseId } = await context.params;
-  const recommendation = getRecommendationForCase(caseId);
+  try {
+    await requireApiAccess();
+    const { caseId } = await context.params;
+    const recommendation = await getRecommendationForCase(caseId);
 
-  if (!recommendation) {
+    if (!recommendation) {
+      return NextResponse.json(
+        { error: "Case not found" },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({ recommendation });
+  } catch (error) {
+    if (error instanceof ApiAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json(
-      { error: "Case not found" },
-      { status: 404 },
+      { error: error instanceof Error ? error.message : "Pricing lookup failed" },
+      { status: 400 },
     );
   }
-
-  return NextResponse.json({ recommendation });
 }

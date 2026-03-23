@@ -1,4 +1,5 @@
-import { env } from "@/lib/env";
+import { prisma } from "@/lib/db";
+import { env, isDemoMode } from "@/lib/env";
 import { getSnapshot } from "@/lib/mock-store";
 import { formatUsd } from "@/lib/utils";
 import type { DomainBrief, PricingRecommendation, Submission, ValidatedCase } from "@/lib/types";
@@ -33,7 +34,11 @@ const deriveReasonCodes = (caseRecord: ValidatedCase, brief?: DomainBrief | null
   return Array.from(codes);
 };
 
-const buildSummary = (caseRecord: ValidatedCase, recommendation: { min: number; max: number }, brief?: DomainBrief | null) =>
+const buildSummary = (
+  caseRecord: ValidatedCase,
+  recommendation: { min: number; max: number },
+  brief?: DomainBrief | null,
+) =>
   [
     `Advisory summary generated for ${caseRecord.domain} using ${env.llmPricingModel}.`,
     `The case carries a novelty score of ${caseRecord.noveltyScore.toFixed(2)} and severity ${caseRecord.severity}/5.`,
@@ -82,20 +87,103 @@ export const buildPricingRecommendation = (
   };
 };
 
-export const getRecommendationForCase = (caseId: string) => {
-  const snapshot = getSnapshot();
-  const caseRecord = snapshot.validatedCases.find((item) => item.id === caseId);
+export const getRecommendationForCase = async (caseId: string) => {
+  if (isDemoMode) {
+    const snapshot = getSnapshot();
+    const caseRecord = snapshot.validatedCases.find((item) => item.id === caseId);
+
+    if (!caseRecord) {
+      return null;
+    }
+
+    const submission = snapshot.submissions.find((item) => item.id === caseRecord.submissionId);
+
+    if (!submission) {
+      return null;
+    }
+
+    const brief = snapshot.briefs.find((item) => item.domain === caseRecord.domain && item.status === "active") ?? null;
+    return buildPricingRecommendation(caseRecord, submission, brief);
+  }
+
+  const existing = await prisma.pricingRecommendation.findFirst({
+    where: {
+      caseId
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+
+  if (existing) {
+    return {
+      ...existing,
+      createdAt: existing.createdAt.toISOString()
+    };
+  }
+
+  const caseRecord = await prisma.validatedCase.findUnique({
+    where: {
+      id: caseId
+    }
+  });
 
   if (!caseRecord) {
     return null;
   }
 
-  const submission = snapshot.submissions.find((item) => item.id === caseRecord.submissionId);
+  const submission = await prisma.submission.findUnique({
+    where: {
+      id: caseRecord.submissionId
+    }
+  });
 
   if (!submission) {
     return null;
   }
 
-  const brief = snapshot.briefs.find((item) => item.domain === caseRecord.domain && item.status === "active") ?? null;
-  return buildPricingRecommendation(caseRecord, submission, brief);
+  const brief = await prisma.domainBrief.findFirst({
+    where: {
+      status: "active",
+      domain: caseRecord.domain
+    }
+  });
+
+  return buildPricingRecommendation(
+    {
+      ...caseRecord,
+      artifactType: caseRecord.artifactType as ValidatedCase["artifactType"],
+      domain: caseRecord.domain as ValidatedCase["domain"],
+      reproStatus: caseRecord.reproStatus as ValidatedCase["reproStatus"],
+      reviewStatus: caseRecord.reviewStatus as ValidatedCase["reviewStatus"],
+      severity: caseRecord.severity as ValidatedCase["severity"],
+      evalEligibility: caseRecord.evalEligibility as ValidatedCase["evalEligibility"],
+      competitionEligibility: caseRecord.competitionEligibility as ValidatedCase["competitionEligibility"],
+      trainingEligibility: caseRecord.trainingEligibility as ValidatedCase["trainingEligibility"],
+      createdAt: caseRecord.createdAt.toISOString()
+    },
+    {
+      ...submission,
+      artifactType: submission.artifactType as Submission["artifactType"],
+      language: submission.language as Submission["language"],
+      artifactIds: [],
+      rights: {
+        evaluation: submission.rightsEvaluation,
+        competition: submission.rightsCompetition,
+        training: submission.rightsTraining
+      },
+      status: submission.status as Submission["status"],
+      createdAt: submission.createdAt.toISOString()
+    },
+    brief
+      ? {
+          ...brief,
+          domain: brief.domain as DomainBrief["domain"],
+          languageFilters: brief.languageFilters as Array<Submission["language"]>,
+          rightsRequested: brief.rightsRequested as Array<keyof Submission["rights"]>,
+          status: brief.status as DomainBrief["status"],
+          createdAt: brief.createdAt.toISOString()
+        }
+      : null,
+  );
 };

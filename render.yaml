@@ -1,0 +1,37 @@
+services:
+  - type: worker
+    name: clawarena-worker
+    runtime: node
+    plan: starter
+    autoDeploy: true
+    buildCommand: npm install && npm run prisma:generate
+    startCommand: npm run worker
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTH_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: FEATURE_PUBLIC_WAITLIST
+        value: "true"
+      - key: FEATURE_COMPETITIONS
+        value: "false"
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: RESEND_ADMIN_INBOX
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_PUBLIC_BASE_URL
+        sync: false
+      - key: SENTRY_DSN
+        sync: false

@@ -8,3 +8,7 @@ export const isArtifactTypeEnabled = (artifactType: ArtifactType) => {
 
   return env.allowNonCodeArtifacts;
 };
+
+export const isPublicWaitlistEnabled = () => env.publicWaitlistEnabled;
+
+export const isCompetitionsEnabled = () => env.competitionsEnabled;

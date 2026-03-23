@@ -1,7 +1,30 @@
 export type ArtifactType = "code_repo" | "spreadsheet" | "notebook";
 export type UserRole = "contributor" | "sponsor" | "reviewer" | "admin";
+export type AccessState = "waitlisted" | "invited" | "active" | "blocked";
+export type WaitlistUserType = "contributor" | "sponsor" | "agent";
+export type WaitlistStatus = "pending" | "approved" | "invited" | "rejected";
 export type SubmissionArtifactType = "log" | "diff" | "screenshot" | "trace" | "chat_log";
 export type ChatLogRole = "system" | "user" | "assistant" | "tool";
+export type SubmitterType = "human" | "agent";
+export type ResolverType = "human" | "agent";
+export type AttemptStatus = "submitted" | "accepted" | "rejected";
+export type RecruitmentType = "person" | "agent";
+export type TokenRewardReason =
+  | "issue_posted"
+  | "agent_issue_posted"
+  | "accepted_resolution_seeded"
+  | "accepted_attempt"
+  | "referral_person_bonus"
+  | "referral_agent_bonus";
+export type ResolverVendor =
+  | "human"
+  | "anthropic"
+  | "openai"
+  | "deepseek"
+  | "openclaw"
+  | "google"
+  | "meta"
+  | "other";
 export type SubmissionStatus =
   | "draft"
   | "submitted"
@@ -21,6 +44,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  accessState: AccessState;
   image?: string;
   organizationId?: string | null;
 }
@@ -30,6 +54,7 @@ export interface Profile {
   headline: string;
   bio: string;
   githubHandle: string;
+  referralCode: string;
   payoutReady: boolean;
 }
 
@@ -45,6 +70,33 @@ export interface Organization {
   id: string;
   name: string;
   type: "lab" | "vendor" | "community";
+}
+
+export interface WaitlistEntry {
+  id: string;
+  email: string;
+  userType: WaitlistUserType;
+  githubHandle?: string | null;
+  company?: string | null;
+  agentName?: string | null;
+  agentFramework?: string | null;
+  operatorName?: string | null;
+  notes?: string | null;
+  status: WaitlistStatus;
+  invitedRole?: UserRole | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Invite {
+  id: string;
+  email: string;
+  role: UserRole;
+  token: string;
+  expiresAt: string;
+  acceptedAt?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
 }
 
 export interface RightsGrant {
@@ -80,14 +132,24 @@ export interface Submission {
   id: string;
   contributorId: string;
   artifactType: ArtifactType;
+  submitterType: SubmitterType;
+  agentName?: string | null;
+  agentFramework?: string | null;
+  agentOperator?: string | null;
   sourceUrl: string;
   taskUrl: string;
   language: "python" | "typescript";
   toolName: string;
   modelName: string;
+  resolverType: ResolverType;
+  resolverVendor: ResolverVendor;
+  resolverLabel: string;
+  resolverModel?: string | null;
   promptSummary: string;
   failingRef: string;
-  fixRef: string;
+  fixRef?: string | null;
+  acceptedAttemptId?: string | null;
+  referredByCode?: string | null;
   reproSteps: string[];
   artifactIds: string[];
   chatLogConsent: boolean;
@@ -119,6 +181,25 @@ export interface ValidatedCase {
   evalEligibility: EligibilityStatus;
   competitionEligibility: EligibilityStatus;
   trainingEligibility: EligibilityStatus;
+  createdAt: string;
+}
+
+export interface ResolutionAttempt {
+  id: string;
+  issueId: string;
+  submitterUserId?: string | null;
+  submitterType: SubmitterType;
+  agentName?: string | null;
+  agentFramework?: string | null;
+  operatorName?: string | null;
+  referredByCode?: string | null;
+  resolverVendor: ResolverVendor;
+  resolverLabel: string;
+  modelName: string;
+  patchSummary: string;
+  fixRef: string;
+  artifactUrl?: string | null;
+  status: AttemptStatus;
   createdAt: string;
 }
 
@@ -244,7 +325,7 @@ export interface PackExport {
   id: string;
   packId: string;
   status: "queued" | "ready";
-  downloadUrl: string;
+  downloadUrl?: string | null;
   createdAt: string;
 }
 
@@ -261,6 +342,8 @@ export interface AuditEvent {
     | "competition"
     | "competition_entry"
     | "pack_export"
+    | "waitlist_entry"
+    | "invite"
     | "dispute";
   entityId: string;
   action: string;
@@ -278,13 +361,56 @@ export interface Dispute {
   createdAt: string;
 }
 
+export interface ResolverLeaderboardEntry {
+  modelName: string;
+  primaryVendor: ResolverVendor;
+  resolverLabels: string[];
+  casesResolved: number;
+  approvedCases: number;
+  competitionEligibleCases: number;
+  agentSubmittedCases: number;
+  averageSeverity: number;
+  averageNovelty: number;
+  totalTokensAwarded: number;
+  totalMatchedPayoutUsd: number;
+  lastResolvedAt?: string | null;
+  leadingDomains: Array<ValidatedCase["domain"]>;
+}
+
+export interface AgentLeaderboardEntry {
+  agentName: string;
+  agentFramework: string;
+  operatorName?: string | null;
+  casesResolved: number;
+  approvedCases: number;
+  averageSeverity: number;
+  averageNovelty: number;
+  modelsUsed: string[];
+  latestModelName: string;
+  lastResolvedAt?: string | null;
+  leadingDomains: Array<ValidatedCase["domain"]>;
+}
+
+export interface TokenLedgerEntry {
+  id: string;
+  userId: string;
+  amount: number;
+  reason: TokenRewardReason;
+  description: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface DashboardSnapshot {
   users: User[];
   profiles: Profile[];
   payoutAccounts: PayoutAccount[];
   organizations: Organization[];
+  waitlistEntries: WaitlistEntry[];
+  invites: Invite[];
   submissions: Submission[];
   submissionArtifacts: SubmissionArtifact[];
+  resolutionAttempts: ResolutionAttempt[];
   validatedCases: ValidatedCase[];
   reviews: ReviewDecision[];
   briefs: DomainBrief[];
@@ -298,4 +424,5 @@ export interface DashboardSnapshot {
   exports: PackExport[];
   auditEvents: AuditEvent[];
   disputes: Dispute[];
+  tokenLedgerEntries: TokenLedgerEntry[];
 }

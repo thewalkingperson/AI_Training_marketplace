@@ -115,7 +115,7 @@ export const BriefComposer = () => {
         <label className="grid gap-2">
           <span className="mono-kicker">Rights requested</span>
           <div className="field-shell">
-            <input name="rights" defaultValue="evaluation,competition" />
+            <input name="rights" defaultValue="evaluation" />
           </div>
         </label>
       </div>

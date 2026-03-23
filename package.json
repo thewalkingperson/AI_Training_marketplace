@@ -1,21 +1,37 @@
 {
-  "name": "failure_exchange",
+  "name": "clawarena",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thewalkingperson/AI_Training_marketplace.git"
+  },
+  "bugs": {
+    "url": "https://github.com/thewalkingperson/AI_Training_marketplace/issues"
+  },
+  "homepage": "https://github.com/thewalkingperson/AI_Training_marketplace",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
+    "vercel-build": "npm run prisma:generate && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
     "worker": "tsx worker/index.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "deploy:check": "npm run prisma:generate && npm run test && next build --webpack",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@auth/prisma-adapter": "latest",

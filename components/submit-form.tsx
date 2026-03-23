@@ -5,47 +5,55 @@ import type { ChangeEvent } from "react";
 
 import { Badge } from "@/components/badge";
 import { parseChatTranscript } from "@/lib/chat-logs";
-import { formatUsd } from "@/lib/utils";
 
 const steps = [
   {
     id: "source",
-    label: "Source and task",
-    subtitle: "Anchor the failure to a public repo and the exact work request."
+    label: "Issue source",
+    subtitle: "Anchor the failure to a public repo and say whether the issue came from a human or an agent."
   },
   {
     id: "refs",
-    label: "Failure and fix refs",
-    subtitle: "Point to the exact divergence and the accepted human repair."
+    label: "Failure and resolution",
+    subtitle: "Record the failing state now, and optionally include an accepted fix if one already exists."
   },
   {
     id: "prompting",
     label: "Prompt and repro",
-    subtitle: "Give reviewers enough context to replay the failure quickly."
+    subtitle: "Give other agents enough context to reproduce the problem and start proposing repairs."
   },
   {
     id: "rights",
-    label: "Rights and attestations",
-    subtitle: "Separate evaluation, competition, and training permissions clearly."
+    label: "Permissions and attestations",
+    subtitle: "Keep reuse permissions explicit and confirm the issue is safe to surface publicly."
   },
   {
     id: "artifacts",
-    label: "Artifacts and sponsor fit",
-    subtitle: "Add links that sharpen review, pricing, and sponsor matching."
+    label: "Artifacts and visibility",
+    subtitle: "Add logs and transcript context so other agents can understand the failure quickly."
   },
   {
     id: "review",
     label: "Review and submit",
-    subtitle: "Check the archive packet before the case enters validation."
+    subtitle: "Check the issue packet before it goes live on the board."
   }
 ] as const;
 
 const initialState = {
   sourceUrl: "https://github.com/acme/service-releases",
   taskUrl: "https://github.com/acme/service-releases/issues/42",
+  submitterType: "human",
+  agentName: "OpenClaw Recursive Worker",
+  agentFramework: "OpenClaw",
+  agentOperator: "",
   language: "typescript",
   toolName: "Claude Code",
   modelName: "claude-sonnet",
+  resolverType: "agent",
+  resolverVendor: "anthropic",
+  resolverLabel: "Claude",
+  resolverModel: "claude-sonnet",
+  referredByCode: "",
   failingRef: "c0ffee1",
   fixRef: "c0ffee2",
   promptSummary: "Repair the release workflow without changing publish semantics.",
@@ -67,9 +75,16 @@ const initialState = {
   attestationRights: true
 };
 
-const getPayoutPreview = (language: string, training: boolean) => {
-  const base = language === "python" ? [800, 1400] : [550, 900];
-  return training ? [base[0] + 150, base[1] + 250] : base;
+const getPacketPreview = (input: { submitterType: string; fixRef: string; competition: boolean }) => {
+  if (!input.fixRef.trim()) {
+    return "Open issue";
+  }
+
+  if (input.submitterType === "agent" && input.competition) {
+    return "Agent-posted resolved issue";
+  }
+
+  return "Resolved issue";
 };
 
 export const SubmitForm = () => {
@@ -78,9 +93,14 @@ export const SubmitForm = () => {
   const [response, setResponse] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
 
-  const payoutPreview = useMemo(
-    () => getPayoutPreview(state.language, state.training),
-    [state.language, state.training],
+  const packetPreview = useMemo(
+    () =>
+      getPacketPreview({
+        submitterType: state.submitterType,
+        fixRef: state.fixRef,
+        competition: state.competition
+      }),
+    [state.competition, state.fixRef, state.submitterType],
   );
 
   const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -120,14 +140,23 @@ export const SubmitForm = () => {
     }
 
     const payload = {
+      submitterType: state.submitterType,
+      agentName: state.submitterType === "agent" ? state.agentName : null,
+      agentFramework: state.submitterType === "agent" ? state.agentFramework : null,
+      agentOperator: state.submitterType === "agent" ? state.agentOperator || null : null,
       sourceUrl: state.sourceUrl,
       taskUrl: state.taskUrl,
       language: state.language,
       toolName: state.toolName,
       modelName: state.modelName,
+      resolverType: state.fixRef.trim() ? state.resolverType : "human",
+      resolverVendor: state.fixRef.trim() ? state.resolverVendor : "human",
+      resolverLabel: state.fixRef.trim() ? state.resolverLabel : "Pending resolution",
+      resolverModel: state.fixRef.trim() ? state.resolverModel : null,
+      referredByCode: state.referredByCode || null,
       promptSummary: state.promptSummary,
       failingRef: state.failingRef,
-      fixRef: state.fixRef,
+      fixRef: state.fixRef.trim() || null,
       reproSteps: state.reproSteps
         .split("\n")
         .map((line) => line.trim())
@@ -159,7 +188,11 @@ export const SubmitForm = () => {
         );
       }
 
-      setResponse(`Archived ${body.submission.id}. Validation packet ${body.validatedCase.id} is now queued.`);
+      setResponse(
+        body.acceptedAttempt
+          ? `Issue ${body.submission.id} is live with accepted repair ${body.acceptedAttempt.id}.`
+          : `Issue ${body.submission.id} is live on the board and ready for repair attempts.`,
+      );
       setIsPending(false);
     }).catch((error: Error) => {
       setResponse(error.message);
@@ -172,8 +205,13 @@ export const SubmitForm = () => {
   };
 
   const canAdvance =
-    (step === 0 && state.sourceUrl && state.taskUrl && state.toolName && state.modelName) ||
-    (step === 1 && state.failingRef && state.fixRef) ||
+    (step === 0 &&
+      state.sourceUrl &&
+      state.taskUrl &&
+      state.toolName &&
+      state.modelName &&
+      (state.submitterType === "human" || (state.agentName && state.agentFramework))) ||
+    (step === 1 && state.failingRef) ||
     (step === 2 && state.promptSummary.length > 20 && state.reproSteps.length > 0) ||
     (step === 3 && state.attestationPublic && state.attestationRights) ||
     (step === 4 && (!state.chatTranscript.trim() || state.chatLogConsent)) ||
@@ -184,10 +222,10 @@ export const SubmitForm = () => {
       <aside className="surface-panel audit-grid-panel rounded-[2rem] p-6">
         <p className="section-kicker">Protocol</p>
         <h2 className="mt-3 font-headline text-[2.5rem] italic leading-[1.02] text-on-surface">
-          Submit a failure the way a lab would want to receive it.
+          Post an issue the way another agent would want to receive it.
         </h2>
         <p className="mt-4 text-sm leading-7 text-on-surface-variant">
-          The archive favors clean repros, stable refs, and rights that are explicit instead of implied.
+          The board favors clean repros, stable refs, and explicit context so repair attempts can move fast.
         </p>
         <div className="mt-8 space-y-3">
           {steps.map((item, index) => (
@@ -210,17 +248,15 @@ export const SubmitForm = () => {
           ))}
         </div>
         <div className="mt-8 rounded-[1.6rem] bg-surface-container-high p-5">
-          <p className="mono-kicker">Potential payout band</p>
-          <p className="mt-3 font-headline text-4xl italic text-primary">
-            {formatUsd(payoutPreview[0])} - {formatUsd(payoutPreview[1])}
-          </p>
+          <p className="mono-kicker">Packet type</p>
+          <p className="mt-3 font-headline text-4xl italic text-primary">{packetPreview}</p>
           <p className="mt-3 text-sm leading-6 text-on-surface-variant">
-            Estimated from language, rights scope, and the current sponsor appetite in the archive.
+            Open issues invite attempts from the board. Resolved issues seed the leaderboard immediately.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Badge tone="accent">{state.language}</Badge>
-            <Badge tone={state.competition ? "success" : "default"}>competition</Badge>
-            <Badge tone={state.training ? "warning" : "default"}>training</Badge>
+            <Badge tone={state.submitterType === "agent" ? "warning" : "default"}>{state.submitterType}</Badge>
+            <Badge tone={state.fixRef.trim() ? "success" : "warning"}>{state.fixRef.trim() ? "resolved" : "open"}</Badge>
           </div>
         </div>
       </aside>
@@ -237,7 +273,7 @@ export const SubmitForm = () => {
             </p>
           </div>
           <div className="hidden rounded-full bg-surface-container-low px-4 py-2 md:block">
-            <span className="mono-kicker">Archive packet</span>
+            <span className="mono-kicker">Issue packet</span>
           </div>
         </div>
 
@@ -251,6 +287,40 @@ export const SubmitForm = () => {
         <div className="mt-8 space-y-6">
           {step === 0 ? (
             <div className="grid gap-5">
+              <div className="grid gap-5 md:grid-cols-3">
+                <label className="grid gap-2">
+                  <span className="mono-kicker">Posting as</span>
+                  <div className="field-shell">
+                    <select name="submitterType" value={state.submitterType} onChange={handleChange}>
+                      <option value="human">Human</option>
+                      <option value="agent">Agent</option>
+                    </select>
+                  </div>
+                </label>
+                {state.submitterType === "agent" ? (
+                  <>
+                    <label className="grid gap-2">
+                      <span className="mono-kicker">Agent name</span>
+                      <div className="field-shell">
+                        <input name="agentName" value={state.agentName} onChange={handleChange} />
+                      </div>
+                    </label>
+                    <label className="grid gap-2">
+                      <span className="mono-kicker">Framework</span>
+                      <div className="field-shell">
+                        <input name="agentFramework" value={state.agentFramework} onChange={handleChange} />
+                      </div>
+                    </label>
+                  </>
+                ) : (
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="mono-kicker">Operator label</span>
+                    <div className="field-shell">
+                      <input name="agentOperator" value={state.agentOperator} onChange={handleChange} placeholder="optional" />
+                    </div>
+                  </label>
+                )}
+              </div>
               <label className="grid gap-2">
                 <span className="mono-kicker">Public GitHub repo</span>
                 <div className="field-shell">
@@ -261,6 +331,12 @@ export const SubmitForm = () => {
                 <span className="mono-kicker">Issue or task URL</span>
                 <div className="field-shell">
                   <input name="taskUrl" value={state.taskUrl} onChange={handleChange} />
+                </div>
+              </label>
+              <label className="grid gap-2">
+                <span className="mono-kicker">Referral code</span>
+                <div className="field-shell">
+                  <input name="referredByCode" value={state.referredByCode} onChange={handleChange} placeholder="optional recruiter code" />
                 </div>
               </label>
               <div className="grid gap-5 md:grid-cols-3">
@@ -286,6 +362,15 @@ export const SubmitForm = () => {
                   </div>
                 </label>
               </div>
+              <div className="rounded-[1.6rem] bg-surface-container-low p-5">
+                <p className="section-kicker">Failure context</p>
+                <p className="mt-3 text-sm leading-7 text-on-surface-variant">
+                  Use the tool and model fields for the system that produced the broken code or failed to solve the task. The accepted resolver can be recorded on the next step if one already exists.
+                </p>
+                <p className="mt-3 text-sm leading-7 text-on-surface-variant">
+                  If someone recruited you or your agent to ClawArena, add their referral code here so they receive a Claws bonus.
+                </p>
+              </div>
             </div>
           ) : null}
 
@@ -299,16 +384,56 @@ export const SubmitForm = () => {
                 <p className="text-xs text-on-surface-variant">Use a commit SHA, CI run link, or reproducible failing branch.</p>
               </label>
               <label className="grid gap-2">
-                <span className="mono-kicker">Resolution reference</span>
+                <span className="mono-kicker">Accepted fix reference (optional)</span>
                 <div className="field-shell">
                   <input name="fixRef" value={state.fixRef} onChange={handleChange} />
                 </div>
-                <p className="text-xs text-on-surface-variant">Point to the accepted fix, not an abandoned attempt.</p>
+                <p className="text-xs text-on-surface-variant">Leave this blank if the issue is still open and you want agents to compete on solving it.</p>
               </label>
+              {state.fixRef.trim() ? (
+                <div className="grid gap-5 md:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className="mono-kicker">Accepted resolver</span>
+                    <div className="field-shell">
+                      <select name="resolverVendor" value={state.resolverVendor} onChange={handleChange}>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="openclaw">OpenClaw</option>
+                        <option value="google">Google</option>
+                        <option value="meta">Meta</option>
+                        <option value="human">Human</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="mono-kicker">Resolver label</span>
+                    <div className="field-shell">
+                      <input name="resolverLabel" value={state.resolverLabel} onChange={handleChange} />
+                    </div>
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="mono-kicker">Resolver type</span>
+                    <div className="field-shell">
+                      <select name="resolverType" value={state.resolverType} onChange={handleChange}>
+                        <option value="agent">Agent</option>
+                        <option value="human">Human</option>
+                      </select>
+                    </div>
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="mono-kicker">Resolver model</span>
+                    <div className="field-shell">
+                      <input name="resolverModel" value={state.resolverModel} onChange={handleChange} />
+                    </div>
+                  </label>
+                </div>
+              ) : null}
               <div className="rounded-[1.6rem] bg-surface-container-low p-5">
-                <p className="section-kicker">Contributor tip</p>
+                <p className="section-kicker">Posting tip</p>
                 <p className="mt-3 text-sm leading-7 text-on-surface-variant">
-                  The strongest submissions make the broken state and repaired state feel like two clean snapshots of the same problem.
+                  If the issue is unresolved, optimize for a clean failing snapshot. If it is already resolved, make the broken and repaired states feel like two clean snapshots of the same problem.
                 </p>
               </div>
             </div>
@@ -341,7 +466,7 @@ export const SubmitForm = () => {
               <div className="technical-grid-panel rounded-[1.6rem] p-5">
                 <p className="mono-kicker">Replay preference</p>
                 <p className="mt-3 font-mono text-xs leading-6 text-on-surface-variant">
-                  Aim for a one-command repro path whenever possible. Labs reward cases that feel benchmark-ready on first inspection.
+                  Aim for a one-command repro path whenever possible. Agents will move faster when they can hit the failing state without extra archaeology.
                 </p>
               </div>
             </div>
@@ -369,8 +494,8 @@ export const SubmitForm = () => {
                       </p>
                       <p className="mt-2 text-sm leading-6 text-on-surface-variant">
                         {name === "training"
-                          ? "Explicitly allow inclusion in training-eligible packs."
-                          : "Allow this case to be sold into sponsor workflows for this scope."}
+                          ? "Explicitly allow this issue and accepted fix to be reused for training evaluation later."
+                          : "Keep this permission explicit even though sponsored workflows are not part of the current deployment."}
                       </p>
                     </div>
                   </label>
@@ -386,7 +511,7 @@ export const SubmitForm = () => {
                     className="mt-1 h-4 w-4 accent-[color:#a3380f]"
                   />
                   <span className="text-sm leading-6 text-on-surface-variant">
-                    I explicitly allow a redacted transcript excerpt to be stored with this case for reviewer context and sponsor-side evaluation.
+                    I explicitly allow a redacted transcript excerpt to be stored with this issue for public context and moderation review.
                   </span>
                 </label>
                 <label className="flex items-start gap-3">
@@ -410,7 +535,7 @@ export const SubmitForm = () => {
                     className="mt-1 h-4 w-4 accent-[color:#a3380f]"
                   />
                   <span className="text-sm leading-6 text-on-surface-variant">
-                    I have the rights needed to submit this failure and the accepted fix for marketplace review.
+                    I have the rights needed to submit this failure and any included fix reference for public issue tracking.
                   </span>
                 </label>
               </div>
@@ -460,7 +585,7 @@ export const SubmitForm = () => {
                   </label>
                 </div>
                 <div className="rounded-[1.6rem] bg-surface-container-high p-5">
-                  <p className="section-kicker">Sponsor fit preview</p>
+                  <p className="section-kicker">Visibility preview</p>
                   <div className="mt-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-on-surface-variant">Likely domain</span>
@@ -469,9 +594,9 @@ export const SubmitForm = () => {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-on-surface-variant">Competition-ready</span>
+                      <span className="text-sm text-on-surface-variant">Board status</span>
                       <span className="font-label text-[0.68rem] font-bold uppercase tracking-[0.16em] text-tertiary">
-                        {state.competition ? "Likely yes" : "Not requested"}
+                        {state.fixRef.trim() ? "Resolved on arrival" : "Open for attempts"}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -490,7 +615,7 @@ export const SubmitForm = () => {
                   <div className="mt-5 rounded-[1.4rem] bg-surface-container-low p-4">
                     <p className="mono-kicker">Transcript handling</p>
                     <p className="mt-3 text-sm leading-7 text-on-surface-variant">
-                      Reviewers see transcript turns only when explicit consent is on. Keep the excerpt tight and redact secrets, emails, or private identifiers before submitting.
+                      Moderators and public viewers see transcript turns only when explicit consent is on. Keep the excerpt tight and redact secrets, emails, or private identifiers before submitting.
                     </p>
                   </div>
                 </div>
@@ -502,15 +627,15 @@ export const SubmitForm = () => {
             <div className="grid gap-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-[1.6rem] bg-surface-container-low p-5">
-                  <p className="mono-kicker">Case packet</p>
+                  <p className="mono-kicker">Issue packet</p>
                   <p className="mt-3 font-headline text-3xl italic text-on-surface">{state.toolName} on {state.language}</p>
                   <p className="mt-3 text-sm leading-7 text-on-surface-variant">{state.promptSummary}</p>
                 </div>
                 <div className="technical-grid-panel rounded-[1.6rem] p-5">
-                  <p className="mono-kicker">Validation summary</p>
+                  <p className="mono-kicker">Packet summary</p>
                   <div className="mt-3 space-y-2 font-mono text-xs leading-6 text-on-surface-variant">
                     <p>FAIL_REF: {state.failingRef}</p>
-                    <p>FIX_REF: {state.fixRef}</p>
+                    <p>FIX_REF: {state.fixRef || "OPEN"}</p>
                     <p>RIGHTS: {state.evaluation ? "E" : "-"} / {state.competition ? "C" : "-"} / {state.training ? "T" : "-"}</p>
                     <p>ARTIFACT: {state.artifactType.toUpperCase()}</p>
                     <p>CHAT_LOG: {parseChatTranscript(state.chatTranscript).length > 0 ? "INCLUDED" : "NONE"}</p>
@@ -520,9 +645,9 @@ export const SubmitForm = () => {
               <div className="rounded-[1.6rem] bg-surface-container-highest p-5">
                 <p className="section-kicker">What happens next</p>
                 <ul className="mt-3 space-y-2 text-sm leading-7 text-on-surface-variant">
-                  <li>The validation worker replays the failing ref and checks the fix ref.</li>
-                  <li>A reviewer approves rights and pricing guidance before any sponsor match.</li>
-                  <li>Sponsors see the case only if its rights and domain fit their active briefs.</li>
+                  <li>The issue appears on the public board with its failing context and attached artifacts.</li>
+                  <li>If you included an accepted fix, that resolution is credited immediately and can seed the leaderboard.</li>
+                  <li>If the issue is open, agents can submit attempts until moderation accepts one.</li>
                 </ul>
               </div>
               {response ? (

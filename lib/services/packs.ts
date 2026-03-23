@@ -1,23 +1,67 @@
+import { Prisma } from "@prisma/client";
+
+import { prisma } from "@/lib/db";
+import { isDemoMode } from "@/lib/env";
 import { addExport, addPack, getSnapshot } from "@/lib/mock-store";
-import { recordAuditEvent } from "@/lib/services/audit";
+import { enqueueJob } from "@/lib/queue";
 import { hasRequiredRights } from "@/lib/permissions";
+import { recordAuditEvent } from "@/lib/services/audit";
+import { jobNames } from "@/worker/contracts";
 import type { CasePack, PackExport, PackType, RightsGrant } from "@/lib/types";
 
 const requiredRightsForPack = (packType: PackType): Array<keyof RightsGrant> =>
   packType === "training_pack" ? ["evaluation", "training"] : ["evaluation"];
 
-export const createPack = (buyerId: string, packType: PackType, caseIds: string[]) => {
-  const snapshot = getSnapshot();
-  const allowedCaseIds = caseIds.filter((caseId) => {
-    const caseRecord = snapshot.validatedCases.find((item) => item.id === caseId);
-    const submission = snapshot.submissions.find((item) => item.id === caseRecord?.submissionId);
+export const createPack = async (buyerId: string, packType: PackType, caseIds: string[]) => {
+  const snapshot = isDemoMode ? getSnapshot() : null;
+  const requiredRights = requiredRightsForPack(packType);
+  const allowedCaseIds: string[] = [];
 
-    if (!caseRecord || !submission) {
-      return false;
+  for (const caseId of caseIds) {
+    if (isDemoMode) {
+      const caseRecord = snapshot!.validatedCases.find((item) => item.id === caseId);
+      const submission = snapshot!.submissions.find((item) => item.id === caseRecord?.submissionId);
+
+      if (caseRecord && submission && hasRequiredRights(submission.rights, requiredRights)) {
+        allowedCaseIds.push(caseId);
+      }
+
+      continue;
     }
 
-    return hasRequiredRights(submission.rights, requiredRightsForPack(packType));
-  });
+    const caseRecord = await prisma.validatedCase.findUnique({
+      where: {
+        id: caseId
+      }
+    });
+
+    if (!caseRecord) {
+      continue;
+    }
+
+    const submission = await prisma.submission.findUnique({
+      where: {
+        id: caseRecord.submissionId
+      }
+    });
+
+    if (!submission) {
+      continue;
+    }
+
+    if (
+      hasRequiredRights(
+        {
+          evaluation: submission.rightsEvaluation,
+          competition: submission.rightsCompetition,
+          training: submission.rightsTraining
+        },
+        requiredRights,
+      )
+    ) {
+      allowedCaseIds.push(caseId);
+    }
+  }
 
   const pack: CasePack = {
     id: crypto.randomUUID(),
@@ -32,19 +76,41 @@ export const createPack = (buyerId: string, packType: PackType, caseIds: string[
     createdAt: new Date().toISOString()
   };
 
-  addPack(pack);
-
   const packExport: PackExport = {
     id: crypto.randomUUID(),
     packId: pack.id,
-    status: "ready",
-    downloadUrl: `https://example.com/exports/${pack.id}.zip`,
+    status: "queued",
+    downloadUrl: null,
     createdAt: new Date().toISOString()
   };
 
-  addExport(packExport);
+  if (isDemoMode) {
+    addPack(pack);
+    addExport(packExport);
+  } else {
+    await prisma.$transaction(async (tx) => {
+      await tx.casePack.create({
+        data: {
+          id: pack.id,
+          buyerId: pack.buyerId,
+          packType: pack.packType,
+          caseIds: pack.caseIds,
+          exportManifest: pack.exportManifest as Prisma.InputJsonValue
+        }
+      });
 
-  recordAuditEvent({
+      await tx.packExport.create({
+        data: {
+          id: packExport.id,
+          packId: packExport.packId,
+          status: packExport.status,
+          downloadUrl: packExport.downloadUrl
+        }
+      });
+    });
+  }
+
+  await recordAuditEvent({
     actorId: buyerId,
     entityType: "pack_export",
     entityId: packExport.id,
@@ -53,6 +119,10 @@ export const createPack = (buyerId: string, packType: PackType, caseIds: string[
       packType,
       caseCount: allowedCaseIds.length
     }
+  });
+
+  await enqueueJob(jobNames.exportPack, {
+    packId: pack.id
   });
 
   return {

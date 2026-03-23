@@ -8,6 +8,7 @@ import type {
   DomainBrief,
   PackExport,
   PricingRecommendation,
+  ResolutionAttempt,
   ReviewDecision,
   Submission,
   ValidatedCase
@@ -29,6 +30,11 @@ export const addSubmission = (submission: Submission) => {
 export const addValidatedCase = (caseRecord: ValidatedCase) => {
   state.validatedCases.unshift(caseRecord);
   return caseRecord;
+};
+
+export const addResolutionAttempt = (attempt: ResolutionAttempt) => {
+  state.resolutionAttempts.unshift(attempt);
+  return attempt;
 };
 
 export const addReview = (review: ReviewDecision) => {

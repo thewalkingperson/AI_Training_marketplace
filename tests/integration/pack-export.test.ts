@@ -8,9 +8,9 @@ describe("pack exports", () => {
     resetMockStore();
   });
 
-  test("filters out cases without the required rights", () => {
-    const evalPack = createPack("usr_lab_1", "eval_pack", ["case_1", "case_2"]);
-    const trainingPack = createPack("usr_lab_1", "training_pack", ["case_1", "case_2"]);
+  test("filters out cases without the required rights", async () => {
+    const evalPack = await createPack("usr_lab_1", "eval_pack", ["case_1", "case_2"]);
+    const trainingPack = await createPack("usr_lab_1", "training_pack", ["case_1", "case_2"]);
 
     expect(evalPack.pack.caseIds).toContain("case_1");
     expect(trainingPack.pack.caseIds).toContain("case_2");

@@ -1,3 +1,7 @@
+import { Prisma } from "@prisma/client";
+
+import { prisma } from "@/lib/db";
+import { isDemoMode } from "@/lib/env";
 import { getSnapshot } from "@/lib/mock-store";
 import type { AuditEvent } from "@/lib/types";
 
@@ -9,13 +13,13 @@ interface RecordAuditInput {
   metadata?: Record<string, unknown>;
 }
 
-export const recordAuditEvent = ({
+export const recordAuditEvent = async ({
   actorId,
   entityType,
   entityId,
   action,
   metadata = {}
-}: RecordAuditInput): AuditEvent => {
+}: RecordAuditInput): Promise<AuditEvent> => {
   const event: AuditEvent = {
     id: crypto.randomUUID(),
     actorId,
@@ -26,6 +30,24 @@ export const recordAuditEvent = ({
     createdAt: new Date().toISOString()
   };
 
-  getSnapshot().auditEvents.unshift(event);
-  return event;
+  if (isDemoMode) {
+    getSnapshot().auditEvents.unshift(event);
+    return event;
+  }
+
+  const created = await prisma.auditEvent.create({
+    data: {
+      id: event.id,
+      actorId,
+      entityType,
+      entityId,
+      action,
+      metadata: metadata as Prisma.InputJsonValue
+    }
+  });
+
+  return {
+    ...event,
+    createdAt: created.createdAt.toISOString()
+  };
 };

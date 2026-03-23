@@ -5,6 +5,8 @@ import { mockSnapshot } from "../lib/mock-data";
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.rateLimitEvent.deleteMany();
+  await prisma.verificationToken.deleteMany();
   await prisma.packExport.deleteMany();
   await prisma.casePack.deleteMany();
   await prisma.competitionRun.deleteMany();
@@ -17,9 +19,13 @@ async function main() {
   await prisma.reviewDecision.deleteMany();
   await prisma.dispute.deleteMany();
   await prisma.auditEvent.deleteMany();
+  await prisma.tokenLedgerEntry.deleteMany();
   await prisma.validatedCase.deleteMany();
+  await prisma.resolutionAttempt.deleteMany();
   await prisma.submissionArtifact.deleteMany();
   await prisma.submission.deleteMany();
+  await prisma.invite.deleteMany();
+  await prisma.waitlistEntry.deleteMany();
   await prisma.payoutAccount.deleteMany();
   await prisma.profile.deleteMany();
   await prisma.session.deleteMany();
@@ -47,19 +53,60 @@ async function main() {
     data: mockSnapshot.payoutAccounts
   });
 
+  await prisma.waitlistEntry.createMany({
+    data: mockSnapshot.waitlistEntries.map((entry) => ({
+      id: entry.id,
+      email: entry.email,
+      userType: entry.userType,
+      githubHandle: entry.githubHandle ?? null,
+      company: entry.company ?? null,
+      agentName: entry.agentName ?? null,
+      agentFramework: entry.agentFramework ?? null,
+      operatorName: entry.operatorName ?? null,
+      notes: entry.notes ?? null,
+      status: entry.status,
+      invitedRole: entry.invitedRole ?? null,
+      createdAt: new Date(entry.createdAt),
+      updatedAt: new Date(entry.updatedAt)
+    }))
+  });
+
+  await prisma.invite.createMany({
+    data: mockSnapshot.invites.map((invite) => ({
+      id: invite.id,
+      email: invite.email,
+      role: invite.role,
+      token: invite.token,
+      expiresAt: new Date(invite.expiresAt),
+      acceptedAt: invite.acceptedAt ? new Date(invite.acceptedAt) : null,
+      createdBy: invite.createdBy ?? null,
+      createdAt: new Date(invite.createdAt)
+    }))
+  });
+
   await prisma.submission.createMany({
     data: mockSnapshot.submissions.map((submission) => ({
       id: submission.id,
       contributorId: submission.contributorId,
       artifactType: submission.artifactType,
+      submitterType: submission.submitterType,
+      agentName: submission.agentName ?? null,
+      agentFramework: submission.agentFramework ?? null,
+      agentOperator: submission.agentOperator ?? null,
       sourceUrl: submission.sourceUrl,
       taskUrl: submission.taskUrl,
       language: submission.language,
       toolName: submission.toolName,
       modelName: submission.modelName,
+      resolverType: submission.resolverType,
+      resolverVendor: submission.resolverVendor,
+      resolverLabel: submission.resolverLabel,
+      resolverModel: submission.resolverModel ?? null,
       promptSummary: submission.promptSummary,
       failingRef: submission.failingRef,
-      fixRef: submission.fixRef,
+      fixRef: submission.fixRef ?? null,
+      acceptedAttemptId: submission.acceptedAttemptId ?? null,
+      referredByCode: submission.referredByCode ?? null,
       reproSteps: submission.reproSteps,
       chatLogConsent: submission.chatLogConsent,
       rightsEvaluation: submission.rights.evaluation,
@@ -79,6 +126,39 @@ async function main() {
       artifactType: artifact.artifactType,
       url: artifact.url ?? null,
       content: artifact.content ? (artifact.content as unknown as Prisma.InputJsonValue) : undefined
+    }))
+  });
+
+  await prisma.resolutionAttempt.createMany({
+    data: mockSnapshot.resolutionAttempts.map((attempt) => ({
+      id: attempt.id,
+      issueId: attempt.issueId,
+      submitterUserId: attempt.submitterUserId ?? null,
+      submitterType: attempt.submitterType,
+      agentName: attempt.agentName ?? null,
+      agentFramework: attempt.agentFramework ?? null,
+      operatorName: attempt.operatorName ?? null,
+      referredByCode: attempt.referredByCode ?? null,
+      resolverVendor: attempt.resolverVendor,
+      resolverLabel: attempt.resolverLabel,
+      modelName: attempt.modelName,
+      patchSummary: attempt.patchSummary,
+      fixRef: attempt.fixRef,
+      artifactUrl: attempt.artifactUrl ?? null,
+      status: attempt.status,
+      createdAt: new Date(attempt.createdAt)
+    }))
+  });
+
+  await prisma.tokenLedgerEntry.createMany({
+    data: mockSnapshot.tokenLedgerEntries.map((entry) => ({
+      id: entry.id,
+      userId: entry.userId,
+      amount: entry.amount,
+      reason: entry.reason,
+      description: entry.description,
+      metadata: entry.metadata as unknown as Prisma.InputJsonValue,
+      createdAt: new Date(entry.createdAt)
     }))
   });
 
@@ -170,6 +250,7 @@ async function main() {
   await prisma.packExport.createMany({
     data: mockSnapshot.exports.map((packExport) => ({
       ...packExport,
+      downloadUrl: packExport.downloadUrl ?? null,
       createdAt: new Date(packExport.createdAt)
     }))
   });

@@ -11,18 +11,27 @@ describe("submission to review flow", () => {
     resetMockStore();
   });
 
-  test("creates a submission, approves it, and suggests brief matches", () => {
-    const created = createSubmission({
-      contributorId: "usr_contrib_1",
+  test("creates a submission, approves it, and suggests brief matches", async () => {
+    const created = await createSubmission({
+      contributorId: "usr_player_1",
       artifactType: "code_repo",
+      submitterType: "human",
+      agentName: null,
+      agentFramework: null,
+      agentOperator: null,
       sourceUrl: "https://github.com/acme/deployments",
       taskUrl: "https://github.com/acme/deployments/issues/12",
       language: "typescript",
       toolName: "Claude Code",
       modelName: "claude-sonnet",
+      resolverType: "agent",
+      resolverVendor: "anthropic",
+      resolverLabel: "Claude",
+      resolverModel: "claude-sonnet",
       promptSummary: "Repair the broken deploy gate without changing release ordering.",
       failingRef: "abc1234",
       fixRef: "def5678",
+      referredByCode: "AVERY-RELAY",
       reproSteps: ["pnpm install", "pnpm test"],
       artifacts: [
         {
@@ -55,7 +64,7 @@ describe("submission to review flow", () => {
       attestations: ["public repo", "allowed to submit"]
     });
 
-    createReviewDecision({
+    await createReviewDecision({
       caseId: created.validatedCase.id,
       reviewerId: "usr_reviewer_1",
       decision: "approved",
@@ -74,14 +83,32 @@ describe("submission to review flow", () => {
     expect(caseRecord?.reviewStatus).toBe("approved");
     expect(submission?.status).toBe("approved");
     expect(submission?.chatLogConsent).toBe(true);
+    expect(submission?.referredByCode).toBe("AVERY-RELAY");
+    expect(created.acceptedAttempt?.status).toBe("accepted");
 
     const chatArtifact = snapshot.submissionArtifacts.find(
       (artifact) => artifact.submissionId === created.submission.id && artifact.artifactType === "chat_log",
     );
+    const issuePostedReward = snapshot.tokenLedgerEntries.find(
+      (entry) => entry.reason === "issue_posted" && entry.metadata.submissionId === created.submission.id,
+    );
+    const seededReward = snapshot.tokenLedgerEntries.find(
+      (entry) => entry.reason === "accepted_resolution_seeded" && entry.metadata.submissionId === created.submission.id,
+    );
+    const referralReward = snapshot.tokenLedgerEntries.find(
+      (entry) => entry.reason === "referral_person_bonus" && entry.metadata.sourceId === created.submission.id,
+    );
+
     expect(chatArtifact).toBeDefined();
     expect(getChatLogMessages(chatArtifact).length).toBe(2);
+    expect(snapshot.resolutionAttempts.some((attempt) => attempt.issueId === created.submission.id)).toBe(true);
+    expect(issuePostedReward?.userId).toBe("usr_player_1");
+    expect(issuePostedReward?.amount).toBe(40);
+    expect(seededReward?.metadata.modelName).toBe("claude-sonnet");
+    expect(referralReward?.userId).toBe("usr_contrib_1");
+    expect(referralReward?.amount).toBe(120);
 
-    const matches = suggestBriefMatches(caseRecord!, submission!);
+    const matches = await suggestBriefMatches(caseRecord!, submission!);
     expect(matches.length).toBeGreaterThan(0);
   });
 });

@@ -14,6 +14,13 @@ enum UserRole {
   admin
 }
 
+enum AccessState {
+  waitlisted
+  invited
+  active
+  blocked
+}
+
 enum ArtifactType {
   code_repo
   spreadsheet
@@ -82,12 +89,62 @@ enum OrganizationType {
   community
 }
 
+enum WaitlistUserType {
+  contributor
+  sponsor
+  agent
+}
+
+enum SubmitterType {
+  human
+  agent
+}
+
+enum ResolverType {
+  human
+  agent
+}
+
+enum ResolverVendor {
+  human
+  anthropic
+  openai
+  deepseek
+  openclaw
+  google
+  meta
+  other
+}
+
+enum AttemptStatus {
+  submitted
+  accepted
+  rejected
+}
+
+enum TokenRewardReason {
+  issue_posted
+  agent_issue_posted
+  accepted_resolution_seeded
+  accepted_attempt
+  referral_person_bonus
+  referral_agent_bonus
+}
+
+enum WaitlistStatus {
+  pending
+  approved
+  invited
+  rejected
+}
+
 model User {
   id                 String              @id
   name               String
   email              String              @unique
   image              String?
   role               UserRole
+  accessState        AccessState         @default(waitlisted)
   organizationId     String?
   organization       Organization?       @relation(fields: [organizationId], references: [id])
   profile            Profile?
@@ -100,6 +157,8 @@ model User {
   reviewDecisions    ReviewDecision[]    @relation("ReviewAuthor")
   auditEvents        AuditEvent[]        @relation("AuditActor")
   disputes           Dispute[]           @relation("DisputeReporter")
+  tokenLedgerEntries TokenLedgerEntry[]
+  submittedAttempts  ResolutionAttempt[] @relation("AttemptSubmitter")
   accounts           Account[]
   sessions           Session[]
 }
@@ -110,6 +169,7 @@ model Profile {
   headline     String
   bio          String
   githubHandle String
+  referralCode String @unique
   payoutReady  Boolean @default(false)
 }
 
@@ -129,19 +189,69 @@ model Organization {
   users   User[]
 }
 
+model WaitlistEntry {
+  id           String            @id @default(cuid())
+  email        String            @unique
+  userType     WaitlistUserType
+  githubHandle String?
+  company      String?
+  agentName    String?
+  agentFramework String?
+  operatorName String?
+  notes        String?
+  status       WaitlistStatus    @default(pending)
+  invitedRole  UserRole?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model Invite {
+  id         String   @id @default(cuid())
+  email      String
+  role       UserRole
+  token      String   @unique
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdBy  String?
+  createdAt  DateTime @default(now())
+
+  @@index([email])
+}
+
+model RateLimitEvent {
+  id          String   @id @default(cuid())
+  key         String
+  scope       String
+  windowStart DateTime
+  count       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([key, scope, windowStart])
+}
+
 model Submission {
   id                String            @id
   contributorId     String
   contributor       User              @relation(fields: [contributorId], references: [id], onDelete: Cascade)
   artifactType      ArtifactType
+  submitterType     SubmitterType     @default(human)
+  agentName         String?
+  agentFramework    String?
+  agentOperator     String?
   sourceUrl         String
   taskUrl           String
   language          String
   toolName          String
   modelName         String
+  resolverType      ResolverType      @default(human)
+  resolverVendor    ResolverVendor    @default(human)
+  resolverLabel     String            @default("Human maintainer")
+  resolverModel     String?
   promptSummary     String
   failingRef        String
-  fixRef            String
+  fixRef            String?
+  acceptedAttemptId String?
+  referredByCode    String?
   reproSteps        String[]
   chatLogConsent    Boolean           @default(false)
   rightsEvaluation  Boolean
@@ -151,6 +261,7 @@ model Submission {
   status            SubmissionStatus
   createdAt         DateTime          @default(now())
   artifacts         SubmissionArtifact[]
+  attempts          ResolutionAttempt[]
   validatedCase     ValidatedCase?
 }
 
@@ -162,6 +273,42 @@ model SubmissionArtifact {
   artifactType String
   url          String?
   content      Json?
+}
+
+model ResolutionAttempt {
+  id            String        @id
+  issueId        String
+  issue          Submission    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  submitterUserId String?
+  submitterUser   User?         @relation("AttemptSubmitter", fields: [submitterUserId], references: [id], onDelete: SetNull)
+  submitterType  SubmitterType @default(human)
+  agentName      String?
+  agentFramework String?
+  operatorName   String?
+  referredByCode String?
+  resolverVendor ResolverVendor
+  resolverLabel  String
+  modelName      String
+  patchSummary   String
+  fixRef         String
+  artifactUrl    String?
+  status         AttemptStatus @default(submitted)
+  createdAt      DateTime      @default(now())
+
+  @@index([issueId, status])
+}
+
+model TokenLedgerEntry {
+  id          String            @id
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Int
+  reason      TokenRewardReason
+  description String
+  metadata    Json
+  createdAt   DateTime          @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model ValidatedCase {
@@ -321,7 +468,7 @@ model PackExport {
   id          String   @id
   packId      String
   status      String
-  downloadUrl String
+  downloadUrl String?
   createdAt   DateTime @default(now())
   pack        CasePack @relation(fields: [packId], references: [id], onDelete: Cascade)
 }
